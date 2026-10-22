@@ -12,11 +12,13 @@ export const BASELINE = Object.freeze({
   maxForwardSpeed: 23.5,       // m/s, 84.6 km/h on the illustrative HUD
   maxReverseSpeed: 8.5,
   coastDrag: 1.3,              // m/s², linear slowing
+  coastTurnDrag: 4.8,          // additional m/s² while steering without throttle
   brakeAcceleration: 31,      // m/s², when changing travel direction
-  steerRate: 116,             // degrees / second at/above turnFullSpeed
+  steerRate: 145,             // experimental tighter turning, degrees/second
+  coastTurnBoost: 1.35,       // steering yaw multiplier when throttle released
   turnFullSpeed: 10.5,        // m/s
   steerResponse: 10,          // smooth input response, 1/s
-  lateralGrip: 8.5,           // reduces sideways velocity
+  lateralGrip: 3.4,           // experimental sliding: slower sideways-velocity decay
   cameraDistance: 12.5,       // render-only
   cameraHeight: 6.1,          // render-only
   cameraSmoothing: 5.5        // render-only
@@ -29,10 +31,12 @@ export const CONTROL_DEFINITIONS = [
     ['reverseAcceleration', 'Reverse acceleration', 2, 22, 0.5, 'm/s²'],
     ['maxReverseSpeed', 'Reverse speed cap', 3, 20, 0.5, 'm/s'],
     ['coastDrag', 'Coasting resistance', 0, 12, 0.1, 'm/s²'],
+    ['coastTurnDrag', 'Steering-only speed loss', 0, 12, 0.2, 'm/s²'],
     ['brakeAcceleration', 'Braking strength', 8, 60, 0.5, 'm/s²']
   ]},
   { title: 'STEERING', fields: [
     ['steerRate', 'Turning speed', 40, 260, 1, '°/s'],
+    ['coastTurnBoost', 'Steering-only sharpness', 1, 2.5, 0.05, '×'],
     ['turnFullSpeed', 'Full-steering threshold', 1, 24, 0.5, 'm/s'],
     ['steerResponse', 'Steering responsiveness', 1, 30, 0.5, '1/s'],
     ['lateralGrip', 'Sideways grip', 0.5, 25, 0.5, '1/s']
@@ -68,6 +72,9 @@ export function stepKart(state, input, physics = BASELINE, dt = STEP) {
   const steering = clamp(Number(input.steer) || 0, -1, 1);
   const k = getKinematics(state);
   let forward = k.longitudinal;
+  // Steering response is updated before coasting friction, so releasing W while
+  // holding A/D immediately starts scrubbing tire speed and turning sharply.
+  state.steer += (steering - state.steer) * (1 - Math.exp(-physics.steerResponse * dt));
 
   if (throttle > 0) {
     forward = forward < -0.03
@@ -78,14 +85,15 @@ export function stepKart(state, input, physics = BASELINE, dt = STEP) {
       ? moveToward(forward, 0, physics.brakeAcceleration * -throttle * dt)
       : Math.max(-physics.maxReverseSpeed, forward + physics.reverseAcceleration * throttle * dt);
   } else {
-    forward = moveToward(forward, 0, physics.coastDrag * dt);
+    const steeringDrag = physics.coastTurnDrag * Math.abs(state.steer);
+    forward = moveToward(forward, 0, (physics.coastDrag + steeringDrag) * dt);
   }
 
   // Smooth steering gives weight/momentum without requiring a drift key.
-  state.steer += (steering - state.steer) * (1 - Math.exp(-physics.steerResponse * dt));
   const turnFraction = clamp(Math.abs(forward) / Math.max(0.01, physics.turnFullSpeed), 0, 1);
   const travelSign = forward < -0.01 ? -1 : 1;
-  state.yawRate = -state.steer * travelSign * turnFraction * physics.steerRate * Math.PI / 180;
+  const coastBoost = throttle === 0 ? physics.coastTurnBoost : 1;
+  state.yawRate = -state.steer * travelSign * turnFraction * physics.steerRate * coastBoost * Math.PI / 180;
   state.heading += state.yawRate * dt;
   state.heading = Math.atan2(Math.sin(state.heading), Math.cos(state.heading));
 

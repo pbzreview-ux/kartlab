@@ -12,7 +12,7 @@
     <canvas id="game" aria-label="3D driving physics practice arena"></canvas>
 
     <header class="topbar">
-      <div class="brand"><span class="brand-icon">K<span>✦</span></span><span>KART<span class="brand-light">LAB</span><small>PHYSICS PROTOTYPE · V0.1</small></span></div>
+      <div class="brand"><span class="brand-icon">K<span>✦</span></span><span>KART<span class="brand-light">LAB</span><small>PHYSICS PROTOTYPE · V0.2</small></span></div>
       <div class="top-status"><span class="live-dot"></span> LOCAL PHYSICS TEST <span class="top-version">/ NO MULTIPLAYER YET</span></div>
       <button id="settingsToggle" class="top-button" aria-expanded="true">⚙ <span>PHYSICS</span></button>
     </header>
@@ -33,12 +33,18 @@
       <div class="metric"><small>DISTANCE</small><div class="value"><strong id="distance">0</strong><span>m</span></div></div>
     </section>
 
+    <div id="inputMonitor" class="input-monitor" aria-label="Live driving key inputs">
+      <div class="input-monitor-heading">LIVE KEY INPUTS <span id="inputReadout">NEUTRAL</span></div>
+      <div class="input-caps"><kbd data-key="up">W</kbd><kbd data-key="left">A</kbd><kbd data-key="down">S</kbd><kbd data-key="right">D</kbd></div>
+      <div class="input-monitor-note">Record this display in reference videos</div>
+    </div>
+
     <div class="crosshair"><div></div><div></div></div>
     <div class="road-label">TEST GROUND <span>///</span> NO MAP SELECTED</div>
 
     <div class="bottom-area">
       <div class="controls-card"><span class="eyebrow">KEYBOARD CONTROLS</span><div class="keys"><span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span><span class="controls-sep">or</span><span>↑ ↓ ← →</span><span class="controls-sep">·</span><span class="key wide">R</span><span>Reset</span><span class="controls-sep">·</span><span class="key wide">C</span><span>Camera</span></div></div>
-      <div class="bottom-actions"><button id="runTest" class="test-button"><span>▶</span> RUN BENCHMARK</button><button id="resetKart" class="reset-button">↺ RESET KART</button></div>
+      <div class="bottom-actions"><button id="recordRun" class="record-button">⦿ RECORD RUN</button><button id="runTest" class="test-button"><span>▶</span> RUN BENCHMARK</button><button id="resetKart" class="reset-button">↺ RESET KART</button></div>
     </div>
 
     <div id="benchmark" class="benchmark hidden"><div class="benchmark-head"><strong>DRIVING BENCHMARK</strong><button id="dismissBenchmark">×</button></div><p id="benchmarkStatus">Ready</p><div class="benchmark-data"><div><small>0–20 m/s</small><strong id="benchmarkAccel">—</strong></div><div><small>4 SECOND DISTANCE</small><strong id="benchmarkDistance">—</strong></div><div><small>COAST DISTANCE</small><strong id="benchmarkCoast">—</strong></div></div><span class="benchmark-note">Same automated test each time. Use reference footage to calibrate.</span></div>

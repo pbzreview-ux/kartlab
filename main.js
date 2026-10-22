@@ -13,12 +13,20 @@ let controlsEnabled = true;
 let freeCamera = false;
 
 function loadSettings() {
-  try { return JSON.parse(localStorage.getItem('kartlab-physics-v1') || '{}'); }
+  try {
+    const previous = JSON.parse(localStorage.getItem('kartlab-physics-v1') || '{}');
+    const current = JSON.parse(localStorage.getItem('kartlab-physics-v2') || 'null');
+    if (current) return current;
+    // Migrate personal edits, but don't automatically keep the previous grip/turn defaults.
+    if (previous.steerRate === 116) delete previous.steerRate;
+    if (previous.lateralGrip === 8.5) delete previous.lateralGrip;
+    return previous;
+  }
   catch { return {}; }
 }
 
 function storeSettings() {
-  try { localStorage.setItem('kartlab-physics-v1', JSON.stringify(settings)); }
+  try { localStorage.setItem('kartlab-physics-v2', JSON.stringify(settings)); }
   catch { /* playable even in browser private mode */ }
 }
 
@@ -189,6 +197,57 @@ function makeKart() {
 
 const model = makeKart();
 
+// Tire traces expose the slide radius for side-by-side reference comparisons.
+const MAX_SKID_SEGMENTS = 9000;
+const skidVertices = new Float32Array(MAX_SKID_SEGMENTS * 6);
+const skidGeometry = new THREE.BufferGeometry();
+const skidAttribute = new THREE.BufferAttribute(skidVertices, 3);
+skidAttribute.setUsage(THREE.DynamicDrawUsage);
+skidGeometry.setAttribute('position', skidAttribute);
+skidGeometry.setDrawRange(0, 0);
+const skids = new THREE.LineSegments(skidGeometry,
+  new THREE.LineBasicMaterial({ color: 0x1b2629, opacity: 0.42, transparent: true, depthWrite: false }));
+skids.frustumCulled = false;
+scene.add(skids);
+let skidSegments = 0;
+let skidTicks = 0;
+let previousTirePositions = null;
+
+function tirePositions() {
+  const cos = Math.cos(kart.heading), sin = Math.sin(kart.heading);
+  return [-0.85, 0.85].map((side) => ({
+    x: kart.x + cos * side + sin * 1.08,
+    z: kart.z - sin * side + cos * 1.08
+  }));
+}
+
+function drawTireTrace() {
+  if (++skidTicks % 3 !== 0) return;
+  const k = getKinematics(kart);
+  if (Math.abs(k.lateral) < 2.8 || k.speed < 5) {
+    previousTirePositions = null;
+    return;
+  }
+  const points = tirePositions();
+  if (previousTirePositions) {
+    if (skidSegments + 2 >= MAX_SKID_SEGMENTS) {
+      skidSegments = 0;
+      skidGeometry.setDrawRange(0, 0);
+      previousTirePositions = null;
+    } else {
+      for (let side = 0; side < 2; side++) {
+        const a = previousTirePositions[side], b = points[side];
+        const offset = skidSegments * 6;
+        skidVertices.set([a.x, 0.035, a.z, b.x, 0.035, b.z], offset);
+        skidSegments++;
+      }
+      skidGeometry.setDrawRange(0, skidSegments * 2);
+      skidAttribute.needsUpdate = true;
+    }
+  }
+  previousTirePositions = points;
+}
+
 function updateModel(dt) {
   const velocity = getKinematics(kart);
   model.root.position.set(kart.x, 0, kart.z);
@@ -214,6 +273,9 @@ function updateCamera(dt, instant = false) {
 
 function resetKart() {
   kart = createKart();
+  skidSegments = 0;
+  previousTirePositions = null;
+  skidGeometry.setDrawRange(0, 0);
   updateModel(0);
   updateCamera(STEP, true);
 }
@@ -281,6 +343,57 @@ const controls = {
   right: ['KeyD', 'ArrowRight']
 };
 
+let recordLog = null;
+let recordSampleTicks = 0;
+const recordButton = $('#recordRun');
+
+function currentInput() {
+  return controlsEnabled ? {
+    throttle: Number(isDown('up')) - Number(isDown('down')),
+    steer: Number(isDown('right')) - Number(isDown('left'))
+  } : { throttle: 0, steer: 0 };
+}
+
+function captureDriveSample(input) {
+  if (!recordLog || ++recordSampleTicks % 12 !== 0) return;
+  const k = getKinematics(kart);
+  recordLog.samples.push({
+    t: Number(kart.elapsed.toFixed(3)),
+    throttle: input.throttle, steerInput: input.steer,
+    x: Number(kart.x.toFixed(3)), z: Number(kart.z.toFixed(3)),
+    heading: Number(kart.heading.toFixed(4)),
+    forwardSpeed: Number(k.longitudinal.toFixed(3)),
+    sidewaysSpeed: Number(k.lateral.toFixed(3)),
+    yawRate: Number((kart.yawRate * 180 / Math.PI).toFixed(2))
+  });
+}
+
+recordButton.addEventListener('click', () => {
+  if (!recordLog) {
+    resetKart();
+    recordLog = { version: 'kartlab-v0.2', created: new Date().toISOString(),
+      note: 'Original KartLab simulation data, not Smash Karts internal telemetry',
+      physics: { ...settings }, samples: [] };
+    recordSampleTicks = 0;
+    recordButton.classList.add('recording');
+    recordButton.textContent = '■ STOP & SAVE LOG';
+    return;
+  }
+  const finished = recordLog;
+  recordLog = null;
+  recordButton.classList.remove('recording');
+  recordButton.textContent = '⦿ RECORD RUN';
+  const blob = new Blob([JSON.stringify(finished, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const download = document.createElement('a');
+  download.href = url;
+  download.download = `kartlab-drive-${Date.now()}.json`;
+  document.body.append(download);
+  download.click();
+  download.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+});
+
 function isDown(action) {
   return touchPressed.has(action) || controls[action].some((code) => pressed.has(code));
 }
@@ -311,11 +424,10 @@ function frame(now) {
   accumulator += realDt;
   let stepCount = 0;
   while (accumulator >= STEP && stepCount < 12) {
-    const input = controlsEnabled ? {
-      throttle: Number(isDown('up')) - Number(isDown('down')),
-      steer: Number(isDown('right')) - Number(isDown('left'))
-    } : { throttle: 0, steer: 0 };
+    const input = currentInput();
     stepKart(kart, input, settings);
+    drawTireTrace();
+    captureDriveSample(input);
     accumulator -= STEP;
     stepCount++;
   }
@@ -340,6 +452,13 @@ function frame(now) {
     $('#steer').textContent = String(Math.round(kart.steer * settings.steerRate * Math.min(1, Math.abs(k.longitudinal) / settings.turnFullSpeed)));
     $('#slip').textContent = Math.abs(k.lateral).toFixed(1);
     $('#distance').textContent = String(Math.floor(kart.distance));
+    for (const direction of ['up', 'left', 'down', 'right']) {
+      $(`#inputMonitor [data-key="${direction}"]`).classList.toggle('active', isDown(direction));
+    }
+    const input = currentInput();
+    const vertical = input.throttle > 0 ? 'FORWARD' : input.throttle < 0 ? 'REVERSE' : 'COAST';
+    const horizontal = input.steer < 0 ? 'LEFT' : input.steer > 0 ? 'RIGHT' : '';
+    $('#inputReadout').textContent = recordLog ? `● REC · ${vertical} ${horizontal}` : `${vertical} ${horizontal}`;
   }
   if (renderer) renderer.render(scene, camera);
   else draw2DFallback();
