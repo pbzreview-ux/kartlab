@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: kartlab-physics
+    runtime: static
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    pullRequestPreviewsEnabled: false

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#080d18" />
+  <meta name="description" content="KartLab physics calibration sandbox: tune acceleration, steering, momentum, and camera feel for a future competitive kart training game." />
+  <title>KartLab — Physics Lab</title>
+</head>
+<body>
+  <div id="app">
+    <canvas id="game" aria-label="3D driving physics practice arena"></canvas>
+
+    <header class="topbar">
+      <div class="brand"><span class="brand-icon">K<span>✦</span></span><span>KART<span class="brand-light">LAB</span><small>PHYSICS PROTOTYPE · V0.1</small></span></div>
+      <div class="top-status"><span class="live-dot"></span> LOCAL PHYSICS TEST <span class="top-version">/ NO MULTIPLAYER YET</span></div>
+      <button id="settingsToggle" class="top-button" aria-expanded="true">⚙ <span>PHYSICS</span></button>
+    </header>
+
+    <aside id="settings" class="settings">
+      <div class="panel-heading"><div><div class="eyebrow">CONTROL CENTER</div><h2>Physics tuning</h2></div><button id="settingsClose" class="close-button" aria-label="Close settings">×</button></div>
+      <p class="helper">Experimental values, <strong>not verified Smash Karts measurements</strong>. Adjust them until driving, cornering, and coasting match your reference.</p>
+      <div id="sliders" class="sliders"></div>
+      <div class="panel-actions"><button id="resetPreset" class="secondary-button">Reset values</button><button id="copyPreset" class="primary-button">Copy preset</button></div>
+      <div id="copyMessage" class="copy-message" aria-live="polite"></div>
+      <div class="panel-footnote">Values save automatically in this browser. Physics runs at a fixed 120 steps/second, independent of frame rate.</div>
+    </aside>
+
+    <section class="hud" aria-live="off">
+      <div class="metric"><small>FORWARD SPEED</small><div class="value"><strong id="speed">0</strong><span>km/h*</span></div></div>
+      <div class="metric"><small>TURN RATE</small><div class="value"><strong id="steer">0</strong><span>°/s</span></div></div>
+      <div class="metric"><small>LATERAL SLIP</small><div class="value"><strong id="slip">0.0</strong><span>m/s</span></div></div>
+      <div class="metric"><small>DISTANCE</small><div class="value"><strong id="distance">0</strong><span>m</span></div></div>
+    </section>
+
+    <div class="crosshair"><div></div><div></div></div>
+    <div class="road-label">TEST GROUND <span>///</span> NO MAP SELECTED</div>
+
+    <div class="bottom-area">
+      <div class="controls-card"><span class="eyebrow">KEYBOARD CONTROLS</span><div class="keys"><span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span><span class="controls-sep">or</span><span>↑ ↓ ← →</span><span class="controls-sep">·</span><span class="key wide">R</span><span>Reset</span><span class="controls-sep">·</span><span class="key wide">C</span><span>Camera</span></div></div>
+      <div class="bottom-actions"><button id="runTest" class="test-button"><span>▶</span> RUN BENCHMARK</button><button id="resetKart" class="reset-button">↺ RESET KART</button></div>
+    </div>
+
+    <div id="benchmark" class="benchmark hidden"><div class="benchmark-head"><strong>DRIVING BENCHMARK</strong><button id="dismissBenchmark">×</button></div><p id="benchmarkStatus">Ready</p><div class="benchmark-data"><div><small>0–20 m/s</small><strong id="benchmarkAccel">—</strong></div><div><small>4 SECOND DISTANCE</small><strong id="benchmarkDistance">—</strong></div><div><small>COAST DISTANCE</small><strong id="benchmarkCoast">—</strong></div></div><span class="benchmark-note">Same automated test each time. Use reference footage to calibrate.</span></div>
+
+    <div id="mobileControls" class="mobile-controls"><button data-control="left">◀</button><button data-control="down">▼</button><button data-control="up">▲</button><button data-control="right">▶</button></div>
+    <div id="error" class="error hidden"></div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
