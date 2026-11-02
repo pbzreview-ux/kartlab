@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  BASELINE, CONFIRMED_RIGIDBODY, REPLAY_COAST_TURN, STEP,
+  BASELINE, CONFIRMED_RIGIDBODY, CONTROL_DEFINITIONS, REPLAY_COAST_TURN, STEP,
   createKart, stepKart, getKinematics, runBenchmark, runCalibrationSuite, validatePreset
 } from './physics.js';
 import {
@@ -14,6 +14,16 @@ function drive(kart, seconds, input, tuning = BASELINE) {
   for (let i = 0; i < Math.round(seconds / STEP); i++) stepKart(kart, input, tuning);
   return kart;
 }
+
+test('every baseline value is selectable exactly by its visible tuning slider', () => {
+  for (const section of CONTROL_DEFINITIONS) for (const [key, , min, max, step] of section.fields) {
+    const baseline = BASELINE[key];
+    assert.ok(baseline >= min && baseline <= max, `${key} is outside slider range`);
+    const stepsFromMin = (baseline - min) / step;
+    assert.ok(Math.abs(stepsFromMin - Math.round(stepsFromMin)) < 1e-8,
+      `${key} default ${baseline} would be rounded by its ${step} slider step`);
+  }
+});
 
 test('verified Rigidbody values are fixed and never editable through presets', () => {
   assert.equal(CONFIRMED_RIGIDBODY.mass, 1.5);

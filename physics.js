@@ -47,8 +47,8 @@ export const CONTROL_DEFINITIONS = [
     ['reverseForce', 'Reverse drive force', 5, 55, 1, 'F'],
     ['maxReverseSpeed', 'Maximum reverse speed', 3, 20, 0.5, 'm/s'],
     ['brakeForce', 'Direction-change braking', 12, 120, 0.5, 'F'],
-    ['coastSteeringDrag', 'Extra steering-only drag', 0, 4, 0.05, '1/s'],
-    ['coastLateralGrip', 'Coasting lateral grip', 0, 12, 0.05, '1/s']
+    ['coastSteeringDrag', 'Extra steering-only drag', 0, 4, 0.01, '1/s'],
+    ['coastLateralGrip', 'Coasting lateral grip', 0, 12, 0.01, '1/s']
   ] },
   { title: 'STEERING & GRIP · ESTIMATED', fields: [
     ['steeringTorque', 'Steering angular acceleration', 150, 1800, 25, '°/s²'],
@@ -56,11 +56,11 @@ export const CONTROL_DEFINITIONS = [
     ['coastTurnBoost', 'Coasting steering boost', 1, 2.8, 0.05, '×'],
     ['turnFullSpeed', 'Full-steering speed', 1, 24, 0.5, 'm/s'],
     ['steerResponse', 'Steering input response', 1, 30, 0.5, '1/s'],
-    ['lateralGrip', 'Extra lateral grip', 0.5, 25, 0.5, '1/s']
+    ['lateralGrip', 'Extra lateral grip', 0.5, 25, 0.1, '1/s']
   ] },
   { title: 'CAMERA · ESTIMATED', fields: [
     ['cameraDistance', 'Follow distance', 6, 21, 0.5, 'm'],
-    ['cameraHeight', 'Camera height', 3, 14, 0.5, 'm'],
+    ['cameraHeight', 'Camera height', 3, 14, 0.1, 'm'],
     ['cameraSmoothing', 'Camera follow speed', 0.5, 15, 0.5, '1/s']
   ] }
 ];
