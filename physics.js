@@ -1,5 +1,5 @@
 /*
- * KartLab v0.4: independent kart-physics calibration simulator.
+ * KartLab v0.5: independent kart-physics calibration simulator.
  * Verified Rigidbody prefab properties are kept separate from unverified
  * motor, steering, camera, and grip parameters. This is not Unity PhysX.
  * Coordinates: heading 0 faces -Z; +X points right.
@@ -71,7 +71,8 @@ export const REPLAY_COAST_TURN = Object.freeze([
 ]);
 
 export function createKart() {
-  return { x: 0, z: 0, heading: 0, vx: 0, vz: 0, steer: 0, yawRate: 0, distance: 0, elapsed: 0 };
+  return { x: 0, z: 0, heading: 0, vx: 0, vz: 0, steer: 0, yawRate: 0,
+    driveDirection: 1, distance: 0, elapsed: 0 };
 }
 
 export function clamp(value, min, max) { return Math.min(max, Math.max(min, value)); }
@@ -108,6 +109,14 @@ export function stepKart(state, input, tuning = BASELINE, dt = STEP) {
     forward = forward > 0.04 ? Math.max(0, forward - delta) : forward - delta;
   }
 
+  // Remember the last *intentional* drive direction. During an unpowered
+  // drift, world-space momentum can move behind the nose as the kart turns.
+  // That does not mean the player selected reverse. Using signed body-axis
+  // velocity to choose steering direction made A-only/D-only turns oscillate
+  // between left and right as the body crossed 90° to its slip velocity.
+  if (throttle > 0 && forward > 0.05) state.driveDirection = 1;
+  if (throttle < 0 && forward < -0.05) state.driveDirection = -1;
+
   // Stable discrete approximation of the real Rigidbody's linear drag = 1.
   // Side grip and additional steering scrub are unverified effects.
   const bodyDamping = 1 / (1 + linearDrag * dt);
@@ -143,7 +152,7 @@ export function stepKart(state, input, tuning = BASELINE, dt = STEP) {
   // longitudinal velocity becomes small: use remaining world-space momentum.
   const steeringSpeed = throttle === 0 ? Math.hypot(state.vx, state.vz) : Math.abs(forward);
   const steeringFactor = clamp(steeringSpeed / Math.max(tuning.turnFullSpeed, 0.01), 0, 1);
-  const direction = forward < -0.05 ? -1 : 1;
+  const direction = state.driveDirection ?? 1;
   const boost = throttle === 0 ? tuning.coastTurnBoost : 1;
   const angularAcceleration = -state.steer * direction * steeringFactor *
     tuning.steeringTorque * boost * Math.PI / 180;

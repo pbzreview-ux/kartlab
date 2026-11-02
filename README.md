@@ -1,4 +1,4 @@
-# KartLab Physics Lab — v0.4 (video-guided)
+# KartLab Physics Lab — v0.5 (full video-input comparison)
 
 An **independently coded**, free-to-host kart physics sandbox that can repeat
 the user-recorded Smash Karts input sequence. This is **not** the original game,
@@ -40,6 +40,39 @@ officially measured Smash Karts stop time.
 Powered turning, reverse driving, acceleration, and camera tuning remain
 experimental. The steering-circle test and all user controls remain intact.
 
+## v0.5 — video comparison, reproducible drift fix
+
+We extracted the user's actual W/A/S/D/SPACE states from the 61.6-second
+recording at 15 Hz, then simulated all 924 recorded input frames with eight
+120 Hz physics updates per frame. This is the *same key sequence*, not a
+handwritten approximation of the driving pattern.
+
+Before v0.5, coasting at an angle could make the kart's body-axis velocity
+temporarily negative while it was still moving forward overall. The physics
+mistakenly treated that as selecting reverse gear, so continued A-only or
+D-only steering alternated direction. The drive direction is now retained
+until the player intentionally accelerates in the opposite direction.
+
+The clearest two sustained circles in the reference video were measured by
+comparing repeated background landmarks at different video time offsets.
+The **screen view** repeats approximately every **2.33s (W+A)** and **2.27s
+(W+D)**. This estimate is affected by the follow camera and terrain and is
+**not** an exact wheel rotation measurement. After replaying the exact video
+inputs, KartLab's mean simulated turn periods are **2.27s** and **2.26s**.
+
+During the video section at 52.6–54.93s, the user held only D after a W
+acceleration. In KartLab's same-sequence replay, speed decreases from about
+**21.8 to 1.0 model m/s**, while the heading rotates right about **239°**
+with **zero unintended steering reversals**. Video confirms a continued sharp
+turn and slowdown; the original game's real m/s and exact degrees cannot be
+measured from these pixels alone.
+
+The **RUN TESTS** panel and its exported JSON include these same-input
+comparisons. The automated suite now has 20 passing tests, including
+regressions for forward/reverse steering direction. Camera smoothing,
+engine force, surface grip, map collisions, weapon handling and absolute
+world scale still require additional ground-truth measurements.
+
 ## Verified Unity prefab values (same as v0.3)
 
 | Setting | Saved value |
@@ -75,20 +108,20 @@ unknown. Two serialized numbers 7 and 50 are still unlabeled.
    JSON. **RECORD RUN** captures KartLab's estimated movement and key inputs.
 
 Keys W/A/S/D or arrow keys drive the kart; R resets; C changes camera.
-Unverified sliders are adjustable and persist as `kartlab-physics-v4` in
-localStorage. An unchanged v0.3 preset is migrated to the new coasting
-defaults; manual tuning changes are preserved where compatible. Use **Reset
-values** to try the exact new v0.4 defaults.
+Unverified sliders are adjustable and persist as `kartlab-physics-v5` in
+localStorage. Existing v0.4 presets migrate without losing individual tuning
+changes, with older presets still supported. Use **Reset values** to try the
+baseline settings.
 
 ## Deploy to GitHub and Render (existing site)
 
-1. Download and **extract** `kartlab-physics-v0.4.zip`.
+1. Download and **extract** the current KartLab release ZIP, or clone the repository.
 2. Open your **existing KartLab GitHub repository**.
-3. Replace/upload **all 11 files** at the **repository root**. Keep
-   `reference_trace.js` alongside `physics.js` and `main.js`. Do not
+3. Replace/upload the source files at the **repository root**. Keep
+   `reference_trace.js` and `reference_calibration.js` alongside `physics.js` and `main.js`. Do not
    upload the ZIP itself, and do not nest files in a new directory.
 4. Commit changes. If auto-deploy is enabled, Render rebuilds the site.
-5. Reload `https://kartlab.onrender.com/` and look for **V0.4**.
+5. Reload `https://kartlab.onrender.com/` and look for **V0.5**.
 
 For a Render Static Site, the unchanged build settings are:
 

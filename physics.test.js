@@ -8,6 +8,7 @@ import {
   REFERENCE_FPS, REFERENCE_FRAMES, REFERENCE_DURATION,
   REFERENCE_HIGHLIGHTS, REFERENCE_TRACE, referenceInputAt
 } from './reference_trace.js';
+import { VIDEO_OBSERVATIONS, runRecordedInputComparison } from './reference_calibration.js';
 
 function drive(kart, seconds, input, tuning = BASELINE) {
   for (let i = 0; i < Math.round(seconds / STEP); i++) stepKart(kart, input, tuning);
@@ -82,6 +83,28 @@ test('W then A only sharply turns while scrubbing speed', () => {
   assert.ok(getKinematics(turning).speed < 0.4, 'Should stop within a few seconds');
 });
 
+test('A-only drift never reverses steering when the kart slides sideways', () => {
+  const kart = drive(createKart(), 3, { throttle: 1, steer: 0 });
+  for (let tick = 0; tick < Math.round(4 / STEP); tick++) {
+    stepKart(kart, { throttle: 0, steer: -1 });
+    assert.ok(kart.yawRate >= 0, `A-only unexpectedly turned right after ${tick * STEP}s`);
+    assert.equal(kart.driveDirection, 1);
+  }
+});
+
+test('D-only drift keeps steering right; S then release preserves reverse steering', () => {
+  const coast = drive(createKart(), 1.3, { throttle: 1, steer: 0 });
+  for (let i = 0; i < Math.round(3 / STEP); i++) {
+    stepKart(coast, { throttle: 0, steer: 1 });
+    assert.ok(coast.yawRate <= 0, `D-only unexpectedly turned left at ${i * STEP}s`);
+  }
+  const reversing = drive(createKart(), 2, { throttle: -1, steer: 0 });
+  assert.equal(reversing.driveDirection, -1);
+  drive(reversing, 0.6, { throttle: 0, steer: -1 });
+  assert.ok(reversing.yawRate < 0, 'Reverse + left should steer in the opposite direction');
+  assert.equal(reversing.driveDirection, -1);
+});
+
 test('video-guided coasting remains controllable for roughly two seconds', () => {
   const result = runCalibrationSuite();
   assert.ok(result.coastTurn.timeToOne >= 1.8, 'Steering-only coast should not stop immediately');
@@ -115,6 +138,28 @@ test('full recorded WASD/SPACE playback stays finite and within the speed cap', 
   }
   assert.ok(kart.distance > 100);
   assert.ok(Math.abs(kart.elapsed - REFERENCE_DURATION) < 0.001);
+});
+
+test('the exact video key sequence matches observed left/right camera orbit timing', () => {
+  const result = runRecordedInputComparison();
+  assert.equal(result.totalSimulatedSeconds.toFixed(1), '61.6');
+  assert.equal(VIDEO_OBSERVATIONS.left.cameraRepeatSeconds, 2.33);
+  assert.equal(VIDEO_OBSERVATIONS.right.cameraRepeatSeconds, 2.27);
+  // These are rough screen-space repeat periods measured from landmarks, not
+  // internal Smash Karts physics numbers. A 0.25s band reflects uncertainty.
+  assert.ok(Math.abs(result.leftOrbit.differenceSeconds) < 0.25);
+  assert.ok(Math.abs(result.rightOrbit.differenceSeconds) < 0.25);
+  assert.ok(result.leftOrbit.signedDegrees > 0);
+  assert.ok(result.rightOrbit.signedDegrees < 0);
+});
+
+test('the recorded D-only coast turns right continuously then slows without W', () => {
+  const result = runRecordedInputComparison();
+  assert.equal(result.steeringOnlyRight.wrongDirectionTicks, 0);
+  assert.ok(result.steeringOnlyRight.turnDegrees < -175);
+  assert.ok(result.steeringOnlyRight.startSpeed > 10);
+  assert.ok(result.steeringOnlyRight.endSpeed < 2);
+  assert.ok(result.finalRelease.endSpeed < result.finalRelease.startSpeed);
 });
 
 test('powered turning creates measurable lateral sliding', () => {

@@ -34,6 +34,8 @@
 .benchmark-data div{padding:9px 11px}
 .benchmark-data small{font-size:9px;min-height:24px;line-height:1.3}
 .benchmark-data strong{font-size:24px}
+#benchmarkVideoLeft,#benchmarkVideoRight,#benchmarkVideoCoast,#benchmarkVideoSteering{font-size:19px;white-space:nowrap}
+.benchmark-data .metric-warning{color:#ffad74}
 .benchmark .benchmark-note{font-size:10px;line-height:1.55;margin-top:15px}
 .export-tests{display:block;width:100%;margin-top:13px;padding:11px 14px;border-radius:7px;background:#eaff74;color:#1a2f27;font-size:10px;font-weight:900;letter-spacing:.5px}
 @media(max-width:850px){.benchmark{top:80px;bottom:auto;max-height:calc(100vh - 170px)}.replay-status{bottom:204px;left:15px}.bottom-actions{max-width:480px}}

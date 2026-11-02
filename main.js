@@ -7,6 +7,7 @@ import {
 import {
   REFERENCE_FPS, REFERENCE_DURATION, REFERENCE_HIGHLIGHTS, referenceInputAt
 } from './reference_trace.js';
+import { runRecordedInputComparison } from './reference_calibration.js';
 
 const $ = (selector) => document.querySelector(selector);
 const canvas = $('#game');
@@ -18,8 +19,10 @@ let playback = null;
 
 function loadSettings() {
   try {
-    const newest = JSON.parse(localStorage.getItem('kartlab-physics-v4') || 'null');
+    const newest = JSON.parse(localStorage.getItem('kartlab-physics-v5') || 'null');
     if (newest) return newest;
+    const videoBaseline = JSON.parse(localStorage.getItem('kartlab-physics-v4') || 'null');
+    if (videoBaseline) return videoBaseline;
     const current = JSON.parse(localStorage.getItem('kartlab-physics-v3') || 'null');
     if (current) {
       // Upgrade untouched v0.3 defaults without discarding intentional edits.
@@ -41,7 +44,7 @@ function loadSettings() {
 }
 
 function storeSettings() {
-  try { localStorage.setItem('kartlab-physics-v4', JSON.stringify(settings)); }
+  try { localStorage.setItem('kartlab-physics-v5', JSON.stringify(settings)); }
   catch { /* playable even in browser private mode */ }
 }
 
@@ -449,7 +452,7 @@ function captureDriveSample(input) {
 recordButton.addEventListener('click', () => {
   if (!recordLog) {
     resetKart();
-    recordLog = { version: 'kartlab-v0.4', created: new Date().toISOString(),
+    recordLog = { version: 'kartlab-v0.5', created: new Date().toISOString(),
       note: 'Original KartLab simulation data, not Smash Karts internal telemetry',
       confirmedRigidbody: { ...CONFIRMED_RIGIDBODY },
       physics: { ...settings }, samples: [] };
@@ -566,12 +569,15 @@ function frame(now) {
 requestAnimationFrame(frame);
 
 let lastCalibration = null;
+let lastVideoComparison = null;
 const seconds = (value) => value === null ? 'Not reached' : `${value.toFixed(2)}s`;
 function showBenchmark() {
   const result = runCalibrationSuite(settings);
   lastCalibration = result;
+  const comparison = runRecordedInputComparison(settings);
+  lastVideoComparison = comparison;
   $('#benchmark').classList.remove('hidden');
-  $('#benchmarkStatus').textContent = 'Identical inputs on every run. These are KartLab estimates.';
+  $('#benchmarkStatus').textContent = 'The full 61.6-second recorded key trace has been simulated at 120 Hz. Video comparisons are approximate.';
   $('#benchmarkAccel').textContent = seconds(result.straight.timeTo20);
   $('#benchmarkDistance').textContent = `${result.straight.distanceAfterThree.toFixed(1)}m`;
   $('#benchmarkCoast').textContent = seconds(result.coast.timeToOne);
@@ -580,15 +586,26 @@ function showBenchmark() {
   $('#benchmarkCircle').textContent = seconds(result.poweredTurn.circleSeconds);
   $('#benchmarkSlip').textContent = `${result.poweredTurn.slipAtFour.toFixed(1)}m/s`;
   $('#benchmarkReverse').textContent = `${result.reverse.speedAfterTwo.toFixed(1)}m/s`;
+  const showRepeat = (name, key) => {
+    const result = comparison[key];
+    const error = Math.abs(result.differenceSeconds);
+    $(`#${name}`).textContent = `${result.predictedTurnPeriodSeconds.toFixed(2)}s / ${result.videoCameraRepeatSeconds.toFixed(2)}s`;
+    $(`#${name}`).classList.toggle('metric-warning', error >= 0.25);
+  };
+  showRepeat('benchmarkVideoLeft', 'leftOrbit');
+  showRepeat('benchmarkVideoRight', 'rightOrbit');
+  $('#benchmarkVideoCoast').textContent = `${comparison.steeringOnlyRight.turnDegrees.toFixed(0)}° · ${comparison.steeringOnlyRight.endSpeed.toFixed(1)}m/s`;
+  $('#benchmarkVideoSteering').textContent = comparison.steeringOnlyRight.wrongDirectionTicks === 0 ? '0 reversals ✓' :
+    `${comparison.steeringOnlyRight.wrongDirectionTicks} incorrect ticks`;
 }
 $('#runTest').addEventListener('click', showBenchmark);
 $('#exportTests').addEventListener('click', () => {
   if (!lastCalibration) showBenchmark();
   const report = {
-    version: 'kartlab-v0.4', date: new Date().toISOString(),
-    note: 'KartLab simulated values; not original-game telemetry',
+    version: 'kartlab-v0.5', date: new Date().toISOString(),
+    note: 'KartLab simulated values; visual repeat times measured from video are approximate, not original-game telemetry',
     confirmedRigidbody: CONFIRMED_RIGIDBODY, estimatedSettings: settings,
-    calibration: lastCalibration,
+    calibration: lastCalibration, videoInputComparison: lastVideoComparison,
     scripts: {
       straight: 'W for 3 seconds',
       coast: 'W 3 seconds, release all keys',
@@ -600,7 +617,7 @@ $('#exportTests').addEventListener('click', () => {
   const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' }));
   const link = document.createElement('a');
   link.href = url;
-  link.download = 'kartlab-v04-tests-' + Date.now() + '.json';
+  link.download = 'kartlab-v05-tests-' + Date.now() + '.json';
   document.body.append(link);
   link.click(); link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);

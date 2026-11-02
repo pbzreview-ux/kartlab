@@ -12,14 +12,14 @@
     <canvas id="game" aria-label="3D driving physics practice arena"></canvas>
 
     <header class="topbar">
-      <div class="brand"><span class="brand-icon">K<span>✦</span></span><span>KART<span class="brand-light">LAB</span><small>REFERENCE-MATCHING LAB · V0.4</small></span></div>
+      <div class="brand"><span class="brand-icon">K<span>✦</span></span><span>KART<span class="brand-light">LAB</span><small>REFERENCE-MATCHING LAB · V0.5</small></span></div>
       <div class="top-status"><span class="live-dot"></span> LOCAL PHYSICS TEST <span class="top-version">/ NO MULTIPLAYER YET</span></div>
       <button id="settingsToggle" class="top-button" aria-expanded="true">⚙ <span>PHYSICS</span></button>
     </header>
 
     <aside id="settings" class="settings">
       <div class="panel-heading"><div><div class="eyebrow">CONTROL CENTER</div><h2>Physics tuning</h2></div><button id="settingsClose" class="close-button" aria-label="Close settings">×</button></div>
-      <p class="helper">KartLab v0.4 uses the confirmed Rigidbody values and has been adjusted against your 61.6-second recording. <strong>Unmeasured forces and steering settings are still estimates.</strong></p>
+      <p class="helper">KartLab v0.5 compares your exact recorded WASD sequence with estimated physics. The steering-only drift no longer reverses direction when the kart slips sideways. <strong>Unmeasured forces and steering settings are still estimates.</strong></p>
       <div class="verified-box">
         <div class="verified-title">CONFIRMED PREFAB DATA <span>LOCKED</span></div>
         <div class="verified-grid"><div><small>MASS</small><strong>1.5</strong></div><div><small>LINEAR DRAG</small><strong>1.0</strong></div><div><small>ANGULAR DRAG</small><strong>5.0</strong></div></div>
@@ -75,8 +75,12 @@
         <div><small>W+A: TIME PER 360°</small><strong id="benchmarkCircle">—</strong></div>
         <div><small>W+A: SIDEWAYS SLIP</small><strong id="benchmarkSlip">—</strong></div>
         <div><small>S: REVERSE SPEED IN 2s</small><strong id="benchmarkReverse">—</strong></div>
+        <div><small>W+A ORBIT · LAB / VIDEO VIEW</small><strong id="benchmarkVideoLeft">—</strong></div>
+        <div><small>W+D ORBIT · LAB / VIDEO VIEW</small><strong id="benchmarkVideoRight">—</strong></div>
+        <div><small>D-ONLY 2.33s · TURN / END SPEED</small><strong id="benchmarkVideoCoast">—</strong></div>
+        <div><small>D-ONLY · WRONG-WAY TURN TICKS</small><strong id="benchmarkVideoSteering">—</strong></div>
       </div>
-      <p class="benchmark-note">Video-guided tuning: the clean D-only coast at 52.6–54.9s has visibly sustained movement. KartLab's W→A coasting benchmark now aims for roughly 2–3s instead of v0.3's premature slowdown. The original game's true speed remains unknown.</p>
+      <p class="benchmark-note">ORBIT COMPARISON: the video repeat times (2.33s left, 2.27s right) were estimated by matching background landmarks during the sustained turns. The physics figures are simulated with your exact recorded key states. Camera motion and terrain make the comparison approximate; absolute game speed and forces remain unknown.</p>
       <button id="exportTests" class="export-tests">↓ DOWNLOAD TEST RESULTS</button>
     </div>
 
