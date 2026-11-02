@@ -1,49 +1,111 @@
-# KartLab Physics Lab — v0.2
+# KartLab Physics Lab — v0.4 (video-guided)
 
-An independently built kart-physics practice prototype. It is **not** the original Smash Karts physics engine. The parameters below are still estimates, not verified source-game constants.
+An **independently coded**, free-to-host kart physics sandbox that can repeat
+the user-recorded Smash Karts input sequence. This is **not** the original game,
+and we cannot truthfully promise bit-for-bit identical physics without the
+original controller source and runtime measurements.
 
-## What's new
+## Reference footage used
 
-- A first steering/drift adjustment informed by the October 22 reference video: `steerRate` now 145°/s and `lateralGrip` 3.4/s (v0.1 used 116°/s and 8.5/s).
-- **Important input correction:** releasing W and holding only A or D should turn tightly using existing momentum, lose speed quickly through steering resistance, and stop after about 4 seconds under the current tentative model. This is distinct from holding W+A continuously. New sliders: *Steering-only speed loss* and *Steering-only sharpness*.
-- Both rear tires leave skid trails during significant sideways sliding, so circle size and trail shape are easier to compare.
-- A prominent W/A/S/D monitor displays the keys you're holding (arrow keys appear as their W/A/S/D equivalents).
-- **Record Run** resets the kart and starts logging position, angle, input, speed, slip, and turn rate at 10 samples/s. **Stop & Save Log** downloads the result as JSON; you can upload that file to the chat for measurement.
-- Physics sliders still work; existing deliberate preset changes from v0.1 are carried over. Previously untouched steering/grip defaults are upgraded.
-- Root-level files match the GitHub structure you used for your existing Render site.
+The user's second recording was readable: **2274×1264, 30 fps, 61.57 seconds**.
+The visible yellow keyboard overlay was sampled **15 times per second**,
+providing an approximate W/A/S/D/SPACE input timeline:
 
-## Update the existing GitHub/Render site
+| Video time | Visible held keys | Calibration use |
+| --- | --- | --- |
+| 29.2–32.7s | W+A | Sustained powered left circle |
+| 32.7–37.2s | W+D | Sustained powered right circle |
+| 45–51s | Mostly A alone, with brief W taps | Coast-and-turn / momentum |
+| 52.6–54.9s | D alone | Clear unpowered steering segment |
+| 14.7–21s | S with alternating A/D | Reverse steering |
+| Several brief points | SPACE | Fire-key visual indicator |
 
-1. Download and **extract** the ZIP. Do not upload the ZIP itself as your website source.
-2. Replace the matching files in the **root** of your existing `kartlab` GitHub repo. Do not put these files into a new `kartlab-physics-v02` subfolder.
-3. Keep `index.html`, `main.js`, `style.css`, and `physics.js` together at the root. `index.html` already references `/main.js`.
-4. Commit the files. Render should build the new version from GitHub automatically.
-5. Reload your Render website. The header should display **V0.2**.
+The video has no known world-meter scale, no reliable absolute speed readout,
+and a moving camera. Therefore measurements such as acceleration in m/s²,
+steering torque or actual 1m/s threshold **cannot be directly recovered** from it.
+The footage supports behavior and approximate timing, not exact source constants.
 
-Existing user login/profile data is not part of this physics prototype. It is a solo sandbox; this update does not add shared rooms or multiplayer.
+## v0.4 physics correction
 
-## Test the new version
+v0.3 scrubbed most of the kart's speed in ~**1.07 seconds** after accelerating
+and steering alone; that was too abrupt compared with the sustained movement
+visible around the D-only 52.6–54.9s input interval.
 
-1. Open the website on a desktop browser. Press **R** to reset. **W** accelerates, **S** reverses, and **A/D** turn. You can also use the arrow keys.
-2. Accelerate with **W** for about 3 seconds, **release W entirely**, then hold only **A** for about 4 seconds. The kart should turn sharply at first and then stop from steering resistance. Compare the rubber circle radius and stopping time with Smash Karts.
-3. Test **W+A** from rest separately; that is a *powered* turn and should behave differently from steering-only coasting.
-4. Use **Record Run**, repeat the first maneuver, then press **Stop & Save Log**. Upload the downloaded `kartlab-drive-*.json` if you want the exact KartLab telemetry analyzed.
-5. Record a video of the reference game while showing your key presses with a keyboard overlay, or tell us precise input start/stop times. The reference game video alone doesn't expose the hidden key inputs or physics constants.
-6. Try **Reset values** in the Physics sidebar to apply the new experimental defaults. If you adjust any slider, its value is saved in this browser.
+v0.4 introduces **a separate lower lateral-grip setting when no throttle is
+pressed** and lets steering torque depend on remaining total momentum during
+coasting. Its repeatable W 3s → A-only benchmark now lasts about **2.31s**
+before slowing under 1m/s. This is a model calibration hypothesis, **not** an
+officially measured Smash Karts stop time.
 
-## Run locally
+Powered turning, reverse driving, acceleration, and camera tuning remain
+experimental. The steering-circle test and all user controls remain intact.
 
-Install Node.js 20.19+ or 22.12+. In this folder:
+## Verified Unity prefab values (same as v0.3)
+
+| Setting | Saved value |
+| --- | --- |
+| Rigidbody mass | 1.5 |
+| Linear drag | 1 |
+| Angular drag | 5 |
+| Gravity | Enabled |
+| Kinematic | Disabled |
+| Rigidbody interpolation | Interpolate |
+| Collision detection | Discrete |
+| Rigidbody constraints | None |
+| Automatic center of mass | Enabled |
+
+These come from a publicly shipped game prefab, not speculation. KartLab's
+browser-side force model **approximates**, but does not execute, Unity PhysX.
+The real game's acceleration, steering, camera and tire-grip formulas remain
+unknown. Two serialized numbers 7 and 50 are still unlabeled.
+
+## New replay tools
+
+1. **REPLAY W → A** runs the original 3-second acceleration + 4-second
+   steering-only controlled test.
+2. **REPLAY RECORDED KEYS** (in the right Physics panel) plays **all 61.6
+   seconds** of the keyboard input trace sampled from the actual recording.
+3. The interface highlights W, A, S, D and SPACE during playback. SPACE
+   indicates fire input but no weapon is implemented yet.
+4. Optional: choose your **local** original MP4 using the Physics panel's
+   file input. The video appears in the panel while the simulated kart runs
+   the extracted input timeline. **The MP4 is never uploaded by KartLab** and
+   is **not included in this small ZIP**.
+5. **RUN TESTS** gives reproducible performance measurements and can download
+   JSON. **RECORD RUN** captures KartLab's estimated movement and key inputs.
+
+Keys W/A/S/D or arrow keys drive the kart; R resets; C changes camera.
+Unverified sliders are adjustable and persist as `kartlab-physics-v4` in
+localStorage. An unchanged v0.3 preset is migrated to the new coasting
+defaults; manual tuning changes are preserved where compatible. Use **Reset
+values** to try the exact new v0.4 defaults.
+
+## Deploy to GitHub and Render (existing site)
+
+1. Download and **extract** `kartlab-physics-v0.4.zip`.
+2. Open your **existing KartLab GitHub repository**.
+3. Replace/upload **all 11 files** at the **repository root**. Keep
+   `reference_trace.js` alongside `physics.js` and `main.js`. Do not
+   upload the ZIP itself, and do not nest files in a new directory.
+4. Commit changes. If auto-deploy is enabled, Render rebuilds the site.
+5. Reload `https://kartlab.onrender.com/` and look for **V0.4**.
+
+For a Render Static Site, the unchanged build settings are:
+
+- Build: `npm ci && npm run build`
+- Publish directory: `dist`
+
+This still uses ordinary free static hosting, with **no multiplayer server**
+and **no gameplay maps or weapons** yet.
+
+## Develop and verify
 
 ```bash
 npm ci
+npm test
+npm run build
 npm run dev
 ```
 
-`npm test` runs movement regressions. `npm run build` produces `dist/`, the folder Render serves as a **Static Site**. For Render, use build command `npm ci && npm run build` and publish directory `dist`.
-
-## Accuracy limitations and next work
-
-The footage shows the original kart making tight circles with substantial visible sideslip. The user clarified the important input pattern: accelerate, release acceleration, and steer alone to spin down. It does not yet provide synchronized exact control timing, a known real-world distance scale, or speed data, so the updated values are a **working hypothesis**, not proof of identical physics.
-
-Next steps are to quantify speed, coasting, circle time, steering reversals, and reverse turns, then work on collision, weapon behavior, maps, and eventual multiplayer. Multiplayer needs a separate authoritative real-time server; this static site works for anyone to **visit**, but everyone still drives alone.
+Physics uses a 120 Hz fixed timestep chosen by KartLab; the original game's
+actual physics timestep has **not** been independently verified.

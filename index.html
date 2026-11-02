@@ -12,18 +12,33 @@
     <canvas id="game" aria-label="3D driving physics practice arena"></canvas>
 
     <header class="topbar">
-      <div class="brand"><span class="brand-icon">K<span>✦</span></span><span>KART<span class="brand-light">LAB</span><small>PHYSICS PROTOTYPE · V0.2</small></span></div>
+      <div class="brand"><span class="brand-icon">K<span>✦</span></span><span>KART<span class="brand-light">LAB</span><small>REFERENCE-MATCHING LAB · V0.4</small></span></div>
       <div class="top-status"><span class="live-dot"></span> LOCAL PHYSICS TEST <span class="top-version">/ NO MULTIPLAYER YET</span></div>
       <button id="settingsToggle" class="top-button" aria-expanded="true">⚙ <span>PHYSICS</span></button>
     </header>
 
     <aside id="settings" class="settings">
       <div class="panel-heading"><div><div class="eyebrow">CONTROL CENTER</div><h2>Physics tuning</h2></div><button id="settingsClose" class="close-button" aria-label="Close settings">×</button></div>
-      <p class="helper">Experimental values, <strong>not verified Smash Karts measurements</strong>. Adjust them until driving, cornering, and coasting match your reference.</p>
+      <p class="helper">KartLab v0.4 uses the confirmed Rigidbody values and has been adjusted against your 61.6-second recording. <strong>Unmeasured forces and steering settings are still estimates.</strong></p>
+      <div class="verified-box">
+        <div class="verified-title">CONFIRMED PREFAB DATA <span>LOCKED</span></div>
+        <div class="verified-grid"><div><small>MASS</small><strong>1.5</strong></div><div><small>LINEAR DRAG</small><strong>1.0</strong></div><div><small>ANGULAR DRAG</small><strong>5.0</strong></div></div>
+        <p>Gravity on · Interpolate · Discrete collisions. This browser simulator approximates Rigidbody damping; it does not execute the original Unity movement code.</p>
+      </div>
+      <div class="reference-box">
+        <div class="eyebrow">YOUR SMASH KARTS VIDEO · KEY REPLAY</div>
+        <p>61.6 seconds of captured WASD + SPACE, sampled 15 times per second from the onscreen key overlay.</p>
+        <button id="referenceReplay" class="reference-button">▶ REPLAY RECORDED KEYS</button>
+        <div id="referenceProgress" class="reference-progress" aria-live="polite">0.0 / 61.6s · Ready to replay</div>
+        <label class="reference-file-label" for="referenceVideoInput">Optional: add your original MP4 to view it beside KartLab</label>
+        <input id="referenceVideoInput" type="file" accept="video/mp4,video/*" aria-label="Select your local reference recording" />
+        <div id="referenceVideoHelp" class="reference-file-note">The video stays on your device; only the captured key timing ships with this site.</div>
+        <video id="referenceVideoPlayer" class="reference-video hidden" muted playsinline controls preload="metadata" aria-label="Original reference recording playing beside the KartLab simulation"></video>
+      </div>
       <div id="sliders" class="sliders"></div>
       <div class="panel-actions"><button id="resetPreset" class="secondary-button">Reset values</button><button id="copyPreset" class="primary-button">Copy preset</button></div>
       <div id="copyMessage" class="copy-message" aria-live="polite"></div>
-      <div class="panel-footnote">Values save automatically in this browser. Physics runs at a fixed 120 steps/second, independent of frame rate.</div>
+      <div class="panel-footnote">Your estimated tuning values save automatically in this browser. Fixed 120 Hz simulation, independent of rendering frame rate.</div>
     </aside>
 
     <section class="hud" aria-live="off">
@@ -35,19 +50,35 @@
 
     <div id="inputMonitor" class="input-monitor" aria-label="Live driving key inputs">
       <div class="input-monitor-heading">LIVE KEY INPUTS <span id="inputReadout">NEUTRAL</span></div>
-      <div class="input-caps"><kbd data-key="up">W</kbd><kbd data-key="left">A</kbd><kbd data-key="down">S</kbd><kbd data-key="right">D</kbd></div>
+      <div class="input-caps"><kbd data-key="up">W</kbd><kbd data-key="left">A</kbd><kbd data-key="down">S</kbd><kbd data-key="right">D</kbd><kbd class="space-key" data-key="fire">SPACE</kbd></div>
       <div class="input-monitor-note">Record this display in reference videos</div>
     </div>
 
     <div class="crosshair"><div></div><div></div></div>
     <div class="road-label">TEST GROUND <span>///</span> NO MAP SELECTED</div>
+    <div id="replayStatus" class="replay-status" aria-live="polite">CONTROLLED REPLAY READY</div>
 
     <div class="bottom-area">
       <div class="controls-card"><span class="eyebrow">KEYBOARD CONTROLS</span><div class="keys"><span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span><span class="controls-sep">or</span><span>↑ ↓ ← →</span><span class="controls-sep">·</span><span class="key wide">R</span><span>Reset</span><span class="controls-sep">·</span><span class="key wide">C</span><span>Camera</span></div></div>
-      <div class="bottom-actions"><button id="recordRun" class="record-button">⦿ RECORD RUN</button><button id="runTest" class="test-button"><span>▶</span> RUN BENCHMARK</button><button id="resetKart" class="reset-button">↺ RESET KART</button></div>
+      <div class="bottom-actions"><button id="replayTest" class="replay-button">↻ REPLAY W → A</button><button id="recordRun" class="record-button">⦿ RECORD RUN</button><button id="runTest" class="test-button"><span>▶</span> RUN TESTS</button><button id="resetKart" class="reset-button">↺ RESET KART</button></div>
     </div>
 
-    <div id="benchmark" class="benchmark hidden"><div class="benchmark-head"><strong>DRIVING BENCHMARK</strong><button id="dismissBenchmark">×</button></div><p id="benchmarkStatus">Ready</p><div class="benchmark-data"><div><small>0–20 m/s</small><strong id="benchmarkAccel">—</strong></div><div><small>4 SECOND DISTANCE</small><strong id="benchmarkDistance">—</strong></div><div><small>COAST DISTANCE</small><strong id="benchmarkCoast">—</strong></div></div><span class="benchmark-note">Same automated test each time. Use reference footage to calibrate.</span></div>
+    <div id="benchmark" class="benchmark hidden">
+      <div class="benchmark-head"><strong>CONTROLLED PHYSICS TESTS</strong><button id="dismissBenchmark" aria-label="Close results">×</button></div>
+      <p id="benchmarkStatus">Ready</p>
+      <div class="benchmark-data">
+        <div><small>W: 0–20 m/s</small><strong id="benchmarkAccel">—</strong></div>
+        <div><small>W: 3s DISTANCE</small><strong id="benchmarkDistance">—</strong></div>
+        <div><small>W → RELEASE: TO 1 m/s</small><strong id="benchmarkCoast">—</strong></div>
+        <div><small>W → A: TO 1 m/s</small><strong id="benchmarkSteerCoast">—</strong></div>
+        <div><small>W → A: TURN IN 2s</small><strong id="benchmarkSharpTurn">—</strong></div>
+        <div><small>W+A: TIME PER 360°</small><strong id="benchmarkCircle">—</strong></div>
+        <div><small>W+A: SIDEWAYS SLIP</small><strong id="benchmarkSlip">—</strong></div>
+        <div><small>S: REVERSE SPEED IN 2s</small><strong id="benchmarkReverse">—</strong></div>
+      </div>
+      <p class="benchmark-note">Video-guided tuning: the clean D-only coast at 52.6–54.9s has visibly sustained movement. KartLab's W→A coasting benchmark now aims for roughly 2–3s instead of v0.3's premature slowdown. The original game's true speed remains unknown.</p>
+      <button id="exportTests" class="export-tests">↓ DOWNLOAD TEST RESULTS</button>
+    </div>
 
     <div id="mobileControls" class="mobile-controls"><button data-control="left">◀</button><button data-control="down">▼</button><button data-control="up">▲</button><button data-control="right">▶</button></div>
     <div id="error" class="error hidden"></div>

@@ -1,9 +1,12 @@
 import * as THREE from 'three';
 import './style.css';
 import {
-  STEP, BASELINE, CONTROL_DEFINITIONS, createKart, getKinematics,
-  stepKart, runBenchmark, validatePreset
+  STEP, BASELINE, CONFIRMED_RIGIDBODY, CONTROL_DEFINITIONS, REPLAY_COAST_TURN,
+  createKart, getKinematics, stepKart, runCalibrationSuite, validatePreset
 } from './physics.js';
+import {
+  REFERENCE_FPS, REFERENCE_DURATION, REFERENCE_HIGHLIGHTS, referenceInputAt
+} from './reference_trace.js';
 
 const $ = (selector) => document.querySelector(selector);
 const canvas = $('#game');
@@ -11,12 +14,24 @@ let settings = validatePreset(loadSettings());
 let kart = createKart();
 let controlsEnabled = true;
 let freeCamera = false;
+let playback = null;
 
 function loadSettings() {
   try {
+    const newest = JSON.parse(localStorage.getItem('kartlab-physics-v4') || 'null');
+    if (newest) return newest;
+    const current = JSON.parse(localStorage.getItem('kartlab-physics-v3') || 'null');
+    if (current) {
+      // Upgrade untouched v0.3 defaults without discarding intentional edits.
+      if (current.coastSteeringDrag === 1.25) delete current.coastSteeringDrag;
+      if (current.coastTurnBoost === 1.4) delete current.coastTurnBoost;
+      return current;
+    }
+    // Keep previous customizations for common fields; removed physics fields
+    // are ignored by validatePreset rather than misinterpreted as force values.
+    const second = JSON.parse(localStorage.getItem('kartlab-physics-v2') || 'null');
+    if (second) return second;
     const previous = JSON.parse(localStorage.getItem('kartlab-physics-v1') || '{}');
-    const current = JSON.parse(localStorage.getItem('kartlab-physics-v2') || 'null');
-    if (current) return current;
     // Migrate personal edits, but don't automatically keep the previous grip/turn defaults.
     if (previous.steerRate === 116) delete previous.steerRate;
     if (previous.lateralGrip === 8.5) delete previous.lateralGrip;
@@ -26,7 +41,7 @@ function loadSettings() {
 }
 
 function storeSettings() {
-  try { localStorage.setItem('kartlab-physics-v2', JSON.stringify(settings)); }
+  try { localStorage.setItem('kartlab-physics-v4', JSON.stringify(settings)); }
   catch { /* playable even in browser private mode */ }
 }
 
@@ -272,6 +287,7 @@ function updateCamera(dt, instant = false) {
 }
 
 function resetKart() {
+  if (playback) finishReplay('KART RESET');
   kart = createKart();
   skidSegments = 0;
   previousTirePositions = null;
@@ -346,12 +362,74 @@ const controls = {
 let recordLog = null;
 let recordSampleTicks = 0;
 const recordButton = $('#recordRun');
+const replayButton = $('#replayTest');
+const referenceButton = $('#referenceReplay');
+const referenceVideo = $('#referenceVideoPlayer');
+let referenceVideoUrl = null;
+
+function finishReplay(status = 'REPLAY COMPLETE') {
+  if (playback?.kind === 'reference') referenceVideo.pause();
+  playback = null;
+  replayButton.textContent = '↻ REPLAY W → A';
+  referenceButton.textContent = '▶ REPLAY RECORDED KEYS';
+  $('#replayStatus').textContent = status;
+}
+
+function beginReplay(kind = 'coast-turn') {
+  resetKart();
+  playback = { kind, elapsed: 0 };
+  if (kind === 'reference') {
+    referenceButton.textContent = '■ STOP REFERENCE';
+    $('#replayStatus').textContent = 'REPLAYING THE VIDEO KEYSTROKES · 61.6s';
+    if (referenceVideoUrl) {
+      referenceVideo.currentTime = 0;
+      referenceVideo.play().catch(() => { /* trace still works without video autoplay */ });
+    }
+  } else {
+    replayButton.textContent = '■ STOP REPLAY';
+    $('#replayStatus').textContent = 'W FOR 3.0s → RELEASE W + HOLD A FOR 4.0s';
+  }
+}
+
+replayButton.addEventListener('click', () => {
+  if (playback?.kind === 'coast-turn') finishReplay('REPLAY STOPPED');
+  else beginReplay('coast-turn');
+});
+referenceButton.addEventListener('click', () => {
+  if (playback?.kind === 'reference') finishReplay('REFERENCE STOPPED');
+  else beginReplay('reference');
+});
+$('#referenceVideoInput').addEventListener('change', (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  if (referenceVideoUrl) URL.revokeObjectURL(referenceVideoUrl);
+  referenceVideoUrl = URL.createObjectURL(file);
+  referenceVideo.src = referenceVideoUrl;
+  referenceVideo.classList.remove('hidden');
+  referenceVideo.load();
+  $('#referenceVideoHelp').textContent = 'Selected: ' + file.name + '. Video stays on your device.';
+});
+window.addEventListener('pagehide', () => { if (referenceVideoUrl) URL.revokeObjectURL(referenceVideoUrl); });
+
+function replayInput() {
+  if (!playback) return null;
+  if (playback.kind === 'reference') return referenceInputAt(playback.elapsed);
+  let start = 0;
+  for (const segment of REPLAY_COAST_TURN) {
+    if (playback.elapsed < start + segment.duration - STEP / 2) return segment.input;
+    start += segment.duration;
+  }
+  return { throttle: 0, steer: 0, fire: false };
+}
 
 function currentInput() {
+  const scripted = replayInput();
+  if (scripted) return scripted;
   return controlsEnabled ? {
     throttle: Number(isDown('up')) - Number(isDown('down')),
-    steer: Number(isDown('right')) - Number(isDown('left'))
-  } : { throttle: 0, steer: 0 };
+    steer: Number(isDown('right')) - Number(isDown('left')),
+    fire: pressed.has('Space')
+  } : { throttle: 0, steer: 0, fire: false };
 }
 
 function captureDriveSample(input) {
@@ -359,7 +437,7 @@ function captureDriveSample(input) {
   const k = getKinematics(kart);
   recordLog.samples.push({
     t: Number(kart.elapsed.toFixed(3)),
-    throttle: input.throttle, steerInput: input.steer,
+    throttle: input.throttle, steerInput: input.steer, fire: Boolean(input.fire),
     x: Number(kart.x.toFixed(3)), z: Number(kart.z.toFixed(3)),
     heading: Number(kart.heading.toFixed(4)),
     forwardSpeed: Number(k.longitudinal.toFixed(3)),
@@ -371,8 +449,9 @@ function captureDriveSample(input) {
 recordButton.addEventListener('click', () => {
   if (!recordLog) {
     resetKart();
-    recordLog = { version: 'kartlab-v0.2', created: new Date().toISOString(),
+    recordLog = { version: 'kartlab-v0.4', created: new Date().toISOString(),
       note: 'Original KartLab simulation data, not Smash Karts internal telemetry',
+      confirmedRigidbody: { ...CONFIRMED_RIGIDBODY },
       physics: { ...settings }, samples: [] };
     recordSampleTicks = 0;
     recordButton.classList.add('recording');
@@ -402,6 +481,7 @@ document.addEventListener('keydown', (event) => {
   const code = event.code;
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(code)) event.preventDefault();
   if (event.target instanceof HTMLInputElement) return;
+  if (playback && Object.values(controls).some((keys) => keys.includes(code))) finishReplay('MANUAL CONTROLS RESUMED');
   if (!event.repeat && code === 'KeyR') resetKart();
   if (!event.repeat && code === 'KeyC') { freeCamera = !freeCamera; updateCamera(STEP, true); }
   pressed.add(code);
@@ -426,6 +506,12 @@ function frame(now) {
   while (accumulator >= STEP && stepCount < 12) {
     const input = currentInput();
     stepKart(kart, input, settings);
+    if (playback) {
+      playback.elapsed += STEP;
+      const total = playback.kind === 'reference' ? REFERENCE_DURATION :
+        REPLAY_COAST_TURN.reduce((sum, segment) => sum + segment.duration, 0);
+      if (playback.elapsed >= total - STEP / 2) finishReplay();
+    }
     drawTireTrace();
     captureDriveSample(input);
     accumulator -= STEP;
@@ -434,6 +520,11 @@ function frame(now) {
   if (stepCount >= 12) accumulator = 0;
   updateModel(realDt);
   updateCamera(realDt);
+  if (playback?.kind === 'reference' && referenceVideoUrl && referenceVideo.readyState >= 2 &&
+      Math.abs(referenceVideo.currentTime - playback.elapsed) > 0.3) {
+    // Keep optional locally selected reference footage close to simulated time.
+    referenceVideo.currentTime = playback.elapsed;
+  }
   sun.position.set(kart.x - 40, 80, kart.z + 30);
   sun.target.position.set(kart.x, 0, kart.z);
   sun.target.updateMatrixWorld();
@@ -449,31 +540,71 @@ function frame(now) {
     hudTimer = 0;
     const k = getKinematics(kart);
     $('#speed').textContent = String(Math.round(k.longitudinal * 3.6));
-    $('#steer').textContent = String(Math.round(kart.steer * settings.steerRate * Math.min(1, Math.abs(k.longitudinal) / settings.turnFullSpeed)));
+    $('#steer').textContent = String(Math.round(kart.yawRate * 180 / Math.PI));
     $('#slip').textContent = Math.abs(k.lateral).toFixed(1);
     $('#distance').textContent = String(Math.floor(kart.distance));
-    for (const direction of ['up', 'left', 'down', 'right']) {
-      $(`#inputMonitor [data-key="${direction}"]`).classList.toggle('active', isDown(direction));
-    }
     const input = currentInput();
+    for (const direction of ['up', 'left', 'down', 'right']) {
+      const active = direction === 'up' ? input.throttle > 0
+        : direction === 'down' ? input.throttle < 0
+          : direction === 'left' ? input.steer < 0 : input.steer > 0;
+      $(`#inputMonitor [data-key="${direction}"]`).classList.toggle('active', active);
+    }
+    $('#inputMonitor [data-key="fire"]').classList.toggle('active', Boolean(input.fire));
+    if (playback?.kind === 'reference') {
+      const label = REFERENCE_HIGHLIGHTS.find((range) => playback.elapsed >= range.start && playback.elapsed < range.end);
+      $('#referenceProgress').textContent = `${playback.elapsed.toFixed(1)} / ${REFERENCE_DURATION.toFixed(1)}s · ${label?.label || 'Recorded controls'}`;
+    }
     const vertical = input.throttle > 0 ? 'FORWARD' : input.throttle < 0 ? 'REVERSE' : 'COAST';
     const horizontal = input.steer < 0 ? 'LEFT' : input.steer > 0 ? 'RIGHT' : '';
-    $('#inputReadout').textContent = recordLog ? `● REC · ${vertical} ${horizontal}` : `${vertical} ${horizontal}`;
+    $('#inputReadout').textContent = recordLog ? `● REC · ${vertical} ${horizontal}`
+      : playback ? `▶ REPLAY · ${vertical} ${horizontal}` : `${vertical} ${horizontal}`;
   }
   if (renderer) renderer.render(scene, camera);
   else draw2DFallback();
 }
 requestAnimationFrame(frame);
 
+let lastCalibration = null;
+const seconds = (value) => value === null ? 'Not reached' : `${value.toFixed(2)}s`;
 function showBenchmark() {
-  const result = runBenchmark(settings);
+  const result = runCalibrationSuite(settings);
+  lastCalibration = result;
   $('#benchmark').classList.remove('hidden');
-  $('#benchmarkStatus').textContent = 'Automated: 4s acceleration → 3s free coast';
-  $('#benchmarkAccel').textContent = result.secondsTo20 == null ? 'Not reached' : `${result.secondsTo20.toFixed(2)}s`;
-  $('#benchmarkDistance').textContent = `${result.distanceAt4.toFixed(1)}m`;
-  $('#benchmarkCoast').textContent = `${result.coastDistance.toFixed(1)}m`;
+  $('#benchmarkStatus').textContent = 'Identical inputs on every run. These are KartLab estimates.';
+  $('#benchmarkAccel').textContent = seconds(result.straight.timeTo20);
+  $('#benchmarkDistance').textContent = `${result.straight.distanceAfterThree.toFixed(1)}m`;
+  $('#benchmarkCoast').textContent = seconds(result.coast.timeToOne);
+  $('#benchmarkSteerCoast').textContent = seconds(result.coastTurn.timeToOne);
+  $('#benchmarkSharpTurn').textContent = `${result.coastTurn.turnDegreesAtTwo.toFixed(0)}°`;
+  $('#benchmarkCircle').textContent = seconds(result.poweredTurn.circleSeconds);
+  $('#benchmarkSlip').textContent = `${result.poweredTurn.slipAtFour.toFixed(1)}m/s`;
+  $('#benchmarkReverse').textContent = `${result.reverse.speedAfterTwo.toFixed(1)}m/s`;
 }
 $('#runTest').addEventListener('click', showBenchmark);
+$('#exportTests').addEventListener('click', () => {
+  if (!lastCalibration) showBenchmark();
+  const report = {
+    version: 'kartlab-v0.4', date: new Date().toISOString(),
+    note: 'KartLab simulated values; not original-game telemetry',
+    confirmedRigidbody: CONFIRMED_RIGIDBODY, estimatedSettings: settings,
+    calibration: lastCalibration,
+    scripts: {
+      straight: 'W for 3 seconds',
+      coast: 'W 3 seconds, release all keys',
+      coastTurn: 'W 3 seconds, then A only',
+      poweredTurn: 'W 1 second, then W+A',
+      reverse: 'S for 2 seconds'
+    }
+  };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'kartlab-v04-tests-' + Date.now() + '.json';
+  document.body.append(link);
+  link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+});
 $('#dismissBenchmark').addEventListener('click', () => $('#benchmark').classList.add('hidden'));
 window.addEventListener('resize', () => {
   const width = window.innerWidth, height = window.innerHeight;
