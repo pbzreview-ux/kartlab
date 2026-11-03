@@ -8,6 +8,7 @@ import {
   REFERENCE_FPS, REFERENCE_DURATION, REFERENCE_HIGHLIGHTS, referenceInputAt
 } from './reference_trace.js';
 import { runRecordedInputComparison } from './reference_calibration.js';
+import { captureInputAt, normalizeCaptureSession } from './capture_import.js';
 
 const $ = (selector) => document.querySelector(selector);
 const canvas = $('#game');
@@ -19,8 +20,10 @@ let playback = null;
 
 function loadSettings() {
   try {
-    const newest = JSON.parse(localStorage.getItem('kartlab-physics-v5') || 'null');
+    const newest = JSON.parse(localStorage.getItem('kartlab-physics-v6') || 'null');
     if (newest) return newest;
+    const prior = JSON.parse(localStorage.getItem('kartlab-physics-v5') || 'null');
+    if (prior) return prior;
     const videoBaseline = JSON.parse(localStorage.getItem('kartlab-physics-v4') || 'null');
     if (videoBaseline) return videoBaseline;
     const current = JSON.parse(localStorage.getItem('kartlab-physics-v3') || 'null');
@@ -44,7 +47,7 @@ function loadSettings() {
 }
 
 function storeSettings() {
-  try { localStorage.setItem('kartlab-physics-v5', JSON.stringify(settings)); }
+  try { localStorage.setItem('kartlab-physics-v6', JSON.stringify(settings)); }
   catch { /* playable even in browser private mode */ }
 }
 
@@ -369,12 +372,15 @@ const replayButton = $('#replayTest');
 const referenceButton = $('#referenceReplay');
 const referenceVideo = $('#referenceVideoPlayer');
 let referenceVideoUrl = null;
+let importedCapture = null;
+const captureDuration = () => importedCapture?.durationSeconds ?? REFERENCE_DURATION;
+const captureReplayLabel = () => importedCapture ? '▶ REPLAY CAPTURED KEYS' : '▶ REPLAY RECORDED KEYS';
 
 function finishReplay(status = 'REPLAY COMPLETE') {
   if (playback?.kind === 'reference') referenceVideo.pause();
   playback = null;
   replayButton.textContent = '↻ REPLAY W → A';
-  referenceButton.textContent = '▶ REPLAY RECORDED KEYS';
+  referenceButton.textContent = captureReplayLabel();
   $('#replayStatus').textContent = status;
 }
 
@@ -383,7 +389,7 @@ function beginReplay(kind = 'coast-turn') {
   playback = { kind, elapsed: 0 };
   if (kind === 'reference') {
     referenceButton.textContent = '■ STOP REFERENCE';
-    $('#replayStatus').textContent = 'REPLAYING THE VIDEO KEYSTROKES · 61.6s';
+    $('#replayStatus').textContent = `REPLAYING KEYSTROKES · ${captureDuration().toFixed(1)}s`;
     if (referenceVideoUrl) {
       referenceVideo.currentTime = 0;
       referenceVideo.play().catch(() => { /* trace still works without video autoplay */ });
@@ -412,11 +418,38 @@ $('#referenceVideoInput').addEventListener('change', (event) => {
   referenceVideo.load();
   $('#referenceVideoHelp').textContent = 'Selected: ' + file.name + '. Video stays on your device.';
 });
+$('#captureJsonInput').addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  if (file.size > 5_000_000) {
+    $('#captureJsonStatus').textContent = 'Capture JSON is too large (5 MB maximum).';
+    return;
+  }
+  try {
+    const parsed = normalizeCaptureSession(JSON.parse(await file.text()));
+    if (playback) finishReplay('CAPTURE UPDATED');
+    importedCapture = parsed;
+    referenceButton.textContent = captureReplayLabel();
+    $('#captureJsonStatus').textContent = `${file.name} · ${parsed.events.length} input changes · ${parsed.durationSeconds.toFixed(1)}s. Ready to replay.`;
+    $('#referenceProgress').textContent = `0.0 / ${parsed.durationSeconds.toFixed(1)}s · Imported session`;
+  } catch (error) {
+    $('#captureJsonStatus').textContent = `Could not load capture: ${error.message}`;
+  }
+});
+$('#clearCapture').addEventListener('click', () => {
+  if (playback) finishReplay('ORIGINAL TRACE RESTORED');
+  importedCapture = null;
+  $('#captureJsonInput').value = '';
+  $('#captureJsonStatus').textContent = 'Original 61.6-second trace selected.';
+  $('#referenceProgress').textContent = `0.0 / ${REFERENCE_DURATION.toFixed(1)}s · Original recording`;
+  referenceButton.textContent = captureReplayLabel();
+});
 window.addEventListener('pagehide', () => { if (referenceVideoUrl) URL.revokeObjectURL(referenceVideoUrl); });
 
 function replayInput() {
   if (!playback) return null;
-  if (playback.kind === 'reference') return referenceInputAt(playback.elapsed);
+  if (playback.kind === 'reference') return importedCapture ?
+    captureInputAt(importedCapture, playback.elapsed) : referenceInputAt(playback.elapsed);
   let start = 0;
   for (const segment of REPLAY_COAST_TURN) {
     if (playback.elapsed < start + segment.duration - STEP / 2) return segment.input;
@@ -452,7 +485,7 @@ function captureDriveSample(input) {
 recordButton.addEventListener('click', () => {
   if (!recordLog) {
     resetKart();
-    recordLog = { version: 'kartlab-v0.5', created: new Date().toISOString(),
+    recordLog = { version: 'kartlab-v0.6', created: new Date().toISOString(),
       note: 'Original KartLab simulation data, not Smash Karts internal telemetry',
       confirmedRigidbody: { ...CONFIRMED_RIGIDBODY },
       physics: { ...settings }, samples: [] };
@@ -511,7 +544,7 @@ function frame(now) {
     stepKart(kart, input, settings);
     if (playback) {
       playback.elapsed += STEP;
-      const total = playback.kind === 'reference' ? REFERENCE_DURATION :
+      const total = playback.kind === 'reference' ? captureDuration() :
         REPLAY_COAST_TURN.reduce((sum, segment) => sum + segment.duration, 0);
       if (playback.elapsed >= total - STEP / 2) finishReplay();
     }
@@ -555,8 +588,8 @@ function frame(now) {
     }
     $('#inputMonitor [data-key="fire"]').classList.toggle('active', Boolean(input.fire));
     if (playback?.kind === 'reference') {
-      const label = REFERENCE_HIGHLIGHTS.find((range) => playback.elapsed >= range.start && playback.elapsed < range.end);
-      $('#referenceProgress').textContent = `${playback.elapsed.toFixed(1)} / ${REFERENCE_DURATION.toFixed(1)}s · ${label?.label || 'Recorded controls'}`;
+      const label = !importedCapture && REFERENCE_HIGHLIGHTS.find((range) => playback.elapsed >= range.start && playback.elapsed < range.end);
+      $('#referenceProgress').textContent = `${playback.elapsed.toFixed(1)} / ${captureDuration().toFixed(1)}s · ${label?.label || (importedCapture ? 'Captured controls' : 'Recorded controls')}`;
     }
     const vertical = input.throttle > 0 ? 'FORWARD' : input.throttle < 0 ? 'REVERSE' : 'COAST';
     const horizontal = input.steer < 0 ? 'LEFT' : input.steer > 0 ? 'RIGHT' : '';
@@ -602,7 +635,7 @@ $('#runTest').addEventListener('click', showBenchmark);
 $('#exportTests').addEventListener('click', () => {
   if (!lastCalibration) showBenchmark();
   const report = {
-    version: 'kartlab-v0.5', date: new Date().toISOString(),
+    version: 'kartlab-v0.6', date: new Date().toISOString(),
     note: 'KartLab simulated values; visual repeat times measured from video are approximate, not original-game telemetry',
     confirmedRigidbody: CONFIRMED_RIGIDBODY, estimatedSettings: settings,
     calibration: lastCalibration, videoInputComparison: lastVideoComparison,
@@ -617,7 +650,7 @@ $('#exportTests').addEventListener('click', () => {
   const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' }));
   const link = document.createElement('a');
   link.href = url;
-  link.download = 'kartlab-v05-tests-' + Date.now() + '.json';
+  link.download = 'kartlab-v06-tests-' + Date.now() + '.json';
   document.body.append(link);
   link.click(); link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);

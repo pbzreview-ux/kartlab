@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "KartLab Movement Capture",
+  "version": "0.1.0",
+  "description": "Locally record Smash Karts WASD/Space timing and optional gameplay video for KartLab physics comparison.",
+  "content_scripts": [
+    {
+      "matches": ["https://smashkarts.io/*", "https://www.smashkarts.io/*"],
+      "js": ["capture.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

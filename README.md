@@ -1,4 +1,4 @@
-# KartLab Physics Lab — v0.5 (full video-input comparison)
+# KartLab Physics Lab — v0.6 (live capture import)
 
 An **independently coded**, free-to-host kart physics sandbox that can repeat
 the user-recorded Smash Karts input sequence. This is **not** the original game,
@@ -68,10 +68,34 @@ turn and slowdown; the original game's real m/s and exact degrees cannot be
 measured from these pixels alone.
 
 The **RUN TESTS** panel and its exported JSON include these same-input
-comparisons. The automated suite now has 20 passing tests, including
+comparisons. The automated suite has regression tests, including
 regressions for forward/reverse steering direction. Camera smoothing,
 engine force, surface grip, map collisions, weapon handling and absolute
 world scale still require additional ground-truth measurements.
+
+## v0.6 — record your own live Smash Karts gameplay
+
+The `capture-extension/` folder contains a minimal Manifest V3 Chrome/Edge
+extension for `https://smashkarts.io` only. On that site it displays a small
+capture panel. The player clicks Start, chooses whether to share the game's
+tab as a local WebM recording, drives, then presses F9 to stop. It captures
+the **exact relative millisecond timestamps** of W/A/S/D/arrow and Space
+presses/releases, plus 50ms input samples. It does **not** access the game
+internals, collect other keystrokes, transmit data, or upload files.
+
+Download the resulting JSON and optional WebM separately. In KartLab's
+Physics panel, use **import capture JSON** to replay the exact key states at
+120Hz, and select the WebM in the local video field to view both side by
+side. Existing 61.6-second reference playback remains the default; the
+standard RUN TESTS benchmark still compares against that original reference.
+The capture JSON import validates origin, duration, ordered timestamps, masks,
+and file size before using it.
+
+The new capture path can improve input timing precision enormously, but a
+recording cannot prove identical 3D physics by itself: the original Unity
+controller and its world-space measurements are not exposed. The plan is to
+derive screen-motion/turn response from local videos and refine measured
+segments; avoid interpreting pixel travel as absolute meters.
 
 ## Verified Unity prefab values (same as v0.3)
 
@@ -108,8 +132,8 @@ unknown. Two serialized numbers 7 and 50 are still unlabeled.
    JSON. **RECORD RUN** captures KartLab's estimated movement and key inputs.
 
 Keys W/A/S/D or arrow keys drive the kart; R resets; C changes camera.
-Unverified sliders are adjustable and persist as `kartlab-physics-v5` in
-localStorage. Existing v0.4 presets migrate without losing individual tuning
+Unverified sliders are adjustable and persist as `kartlab-physics-v6` in
+localStorage. Existing v0.5/v0.4 presets migrate without losing individual tuning
 changes, with older presets still supported. Use **Reset values** to try the
 baseline settings.
 
@@ -118,10 +142,10 @@ baseline settings.
 1. Download and **extract** the current KartLab release ZIP, or clone the repository.
 2. Open your **existing KartLab GitHub repository**.
 3. Replace/upload the source files at the **repository root**. Keep
-   `reference_trace.js` and `reference_calibration.js` alongside `physics.js` and `main.js`. Do not
+   `reference_trace.js`, `reference_calibration.js`, and `capture_import.js` alongside `physics.js` and `main.js`. Do not
    upload the ZIP itself, and do not nest files in a new directory.
 4. Commit changes. If auto-deploy is enabled, Render rebuilds the site.
-5. Reload `https://kartlab.onrender.com/` and look for **V0.5**.
+5. Reload `https://kartlab.onrender.com/` and look for **V0.6**.
 
 For a Render Static Site, the unchanged build settings are:
 

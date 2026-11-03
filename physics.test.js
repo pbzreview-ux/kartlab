@@ -9,6 +9,7 @@ import {
   REFERENCE_HIGHLIGHTS, REFERENCE_TRACE, referenceInputAt
 } from './reference_trace.js';
 import { VIDEO_OBSERVATIONS, runRecordedInputComparison } from './reference_calibration.js';
+import { normalizeCaptureSession, captureInputAt } from './capture_import.js';
 
 function drive(kart, seconds, input, tuning = BASELINE) {
   for (let i = 0; i < Math.round(seconds / STEP); i++) stepKart(kart, input, tuning);
@@ -170,6 +171,51 @@ test('the recorded D-only coast turns right continuously then slows without W', 
   assert.ok(result.steeringOnlyRight.startSpeed > 10);
   assert.ok(result.steeringOnlyRight.endSpeed < 2);
   assert.ok(result.finalRelease.endSpeed < result.finalRelease.startSpeed);
+});
+
+test('an imported local capture replays precise WASD and Space timing', () => {
+  const capture = normalizeCaptureSession({
+    schema: 'kartlab-capture/v1', source: 'https://smashkarts.io', durationMs: 7000,
+    events: [
+      { ms: 0, mask: 0 }, { ms: 1000, mask: 1 },
+      { ms: 2200, mask: 3 }, { ms: 3500, mask: 18 },
+      { ms: 3550, mask: 2 }, { ms: 6000, mask: 0 }
+    ]
+  });
+  assert.equal(capture.durationSeconds, 7);
+  assert.deepEqual(captureInputAt(capture, 1.000), { throttle: 1, steer: 0, fire: false });
+  assert.deepEqual(captureInputAt(capture, 2.200), { throttle: 1, steer: -1, fire: false });
+  assert.deepEqual(captureInputAt(capture, 3.500), { throttle: 0, steer: -1, fire: true });
+  assert.deepEqual(captureInputAt(capture, 3.550), { throttle: 0, steer: -1, fire: false });
+  assert.deepEqual(captureInputAt(capture, 6.000), { throttle: 0, steer: 0, fire: false });
+  assert.deepEqual(captureInputAt(capture, 7.000), { throttle: 0, steer: 0, fire: false });
+});
+
+test('the capture importer rejects unsafe or malformed files', () => {
+  const valid = { schema: 'kartlab-capture/v1', source: 'https://smashkarts.io',
+    durationMs: 2000, events: [{ ms: 0, mask: 0 }] };
+  assert.throws(() => normalizeCaptureSession({ ...valid, schema: 'unexpected' }), /Not a KartLab/);
+  assert.throws(() => normalizeCaptureSession({ ...valid, source: 'https://other.com' }), /Expected a capture/);
+  assert.throws(() => normalizeCaptureSession({ ...valid, durationMs: 900000 }), /duration/);
+  assert.throws(() => normalizeCaptureSession({ ...valid, events: [{ ms: 0, mask: 32 }] }), /mask/);
+  assert.throws(() => normalizeCaptureSession({ ...valid, events: [{ ms: 2, mask: 1 }, { ms: 1, mask: 0 }] }), /ordered/);
+});
+
+test('the full supplied video trace can be imported and replayed without losing key states', () => {
+  const events = [];
+  let lastMask = -1;
+  for (let frame = 0; frame < REFERENCE_FRAMES; frame++) {
+    const mask = parseInt(REFERENCE_TRACE[frame], 32);
+    if (mask !== lastMask) events.push({ ms: Math.round(frame * 1000 / REFERENCE_FPS), mask });
+    lastMask = mask;
+  }
+  const capture = normalizeCaptureSession({ schema: 'kartlab-capture/v1',
+    source: 'https://smashkarts.io', durationMs: 61600, events });
+  for (let frame = 0; frame < REFERENCE_FRAMES; frame++) {
+    // 1ms after the 15Hz frame boundary avoids submillisecond rounding noise.
+    const t = frame / REFERENCE_FPS + 0.001;
+    assert.deepEqual(captureInputAt(capture, t), referenceInputAt(t));
+  }
 });
 
 test('powered turning creates measurable lateral sliding', () => {

@@ -12,14 +12,14 @@
     <canvas id="game" aria-label="3D driving physics practice arena"></canvas>
 
     <header class="topbar">
-      <div class="brand"><span class="brand-icon">K<span>✦</span></span><span>KART<span class="brand-light">LAB</span><small>REFERENCE-MATCHING LAB · V0.5</small></span></div>
+      <div class="brand"><span class="brand-icon">K<span>✦</span></span><span>KART<span class="brand-light">LAB</span><small>REFERENCE-MATCHING LAB · V0.6</small></span></div>
       <div class="top-status"><span class="live-dot"></span> LOCAL PHYSICS TEST <span class="top-version">/ NO MULTIPLAYER YET</span></div>
       <button id="settingsToggle" class="top-button" aria-expanded="true">⚙ <span>PHYSICS</span></button>
     </header>
 
     <aside id="settings" class="settings">
       <div class="panel-heading"><div><div class="eyebrow">CONTROL CENTER</div><h2>Physics tuning</h2></div><button id="settingsClose" class="close-button" aria-label="Close settings">×</button></div>
-      <p class="helper">KartLab v0.5 compares your exact recorded WASD sequence with estimated physics. The steering-only drift no longer reverses direction when the kart slips sideways. <strong>Unmeasured forces and steering settings are still estimates.</strong></p>
+      <p class="helper">KartLab v0.6 can replay your own high-resolution captured WASD sequence or the original 61.6-second video trace. The steering-only drift keeps its intended direction. <strong>Unmeasured forces and steering settings remain estimates.</strong></p>
       <div class="verified-box">
         <div class="verified-title">CONFIRMED PREFAB DATA <span>LOCKED</span></div>
         <div class="verified-grid"><div><small>MASS</small><strong>1.5</strong></div><div><small>LINEAR DRAG</small><strong>1.0</strong></div><div><small>ANGULAR DRAG</small><strong>5.0</strong></div></div>
@@ -30,8 +30,12 @@
         <p>61.6 seconds of captured WASD + SPACE, sampled 15 times per second from the onscreen key overlay.</p>
         <button id="referenceReplay" class="reference-button">▶ REPLAY RECORDED KEYS</button>
         <div id="referenceProgress" class="reference-progress" aria-live="polite">0.0 / 61.6s · Ready to replay</div>
-        <label class="reference-file-label" for="referenceVideoInput">Optional: add your original MP4 to view it beside KartLab</label>
-        <input id="referenceVideoInput" type="file" accept="video/mp4,video/*" aria-label="Select your local reference recording" />
+        <label class="reference-file-label" for="captureJsonInput">New: import the JSON from KartLab's Smash Karts capture extension</label>
+        <input id="captureJsonInput" type="file" accept=".json,application/json" aria-label="Select KartLab Capture JSON" />
+        <button id="clearCapture" class="reference-clear-button">Use original recorded keys</button>
+        <div id="captureJsonStatus" class="reference-file-note" aria-live="polite">Original 61.6-second trace selected.</div>
+        <label class="reference-file-label" for="referenceVideoInput">Optional: add your local MP4 or WebM to view beside KartLab</label>
+        <input id="referenceVideoInput" type="file" accept="video/mp4,video/webm,video/*" aria-label="Select your local reference recording" />
         <div id="referenceVideoHelp" class="reference-file-note">The video stays on your device; only the captured key timing ships with this site.</div>
         <video id="referenceVideoPlayer" class="reference-video hidden" muted playsinline controls preload="metadata" aria-label="Original reference recording playing beside the KartLab simulation"></video>
       </div>
@@ -65,7 +69,7 @@
 
     <div id="benchmark" class="benchmark hidden">
       <div class="benchmark-head"><strong>CONTROLLED PHYSICS TESTS</strong><button id="dismissBenchmark" aria-label="Close results">×</button></div>
-      <p id="benchmarkStatus">Ready</p>
+      <p id="benchmarkStatus">Ready · these comparisons use the original 61.6-second benchmark trace.</p>
       <div class="benchmark-data">
         <div><small>W: 0–20 m/s</small><strong id="benchmarkAccel">—</strong></div>
         <div><small>W: 3s DISTANCE</small><strong id="benchmarkDistance">—</strong></div>
